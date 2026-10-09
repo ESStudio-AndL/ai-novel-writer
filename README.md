@@ -2,6 +2,27 @@
 
 一个不用装 SDK、不用编译的单页 Web App：手机浏览器打开就能用，所有数据存在本机 localStorage，API Key 只保存在你自己的设备上。
 
+## 从 GitHub 下载到 Termux
+
+```bash
+pkg update && pkg install -y git python
+git clone https://<你的TOKEN>@github.com/ESStudio-AndL/ai-novel-assistant.git
+cd ai-novel-assistant
+python3 -m http.server 8080
+```
+
+然后在手机浏览器打开 `http://127.0.0.1:8080`。
+
+本仓库是**私有**的，所以 `clone` 需要 token：到 <https://github.com/settings/tokens> 生成（Fine-grained 选这个仓库、Contents = Read and write 即可）。嫌麻烦可以把仓库改成公开，`git clone https://github.com/ESStudio-AndL/ai-novel-assistant.git` 不带 token 就能拉。
+
+以后我这边更新了，在 Termux 里一条命令同步：
+
+```bash
+cd ai-novel-assistant && git pull
+```
+
+> 数据是存在浏览器 localStorage 里的，按 **origin + 端口** 隔离。建议一直用同一个端口（比如 8080），换端口会看到空书架。
+
 ## 在 Termux / 手机上跑起来
 
 ```bash
