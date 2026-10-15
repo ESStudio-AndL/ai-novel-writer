@@ -80,6 +80,8 @@ vc.on('error', (...a) => errors.push('console.error: ' + a.join(' ')));
   };
   w.Store.state.providers[0].apiKey = 'test';
   w.Store.state.activeProviderId = w.Store.state.providers[0].id;
+  // 关掉「生成前预览」面板：本文件测的是生成 / 重写主流程，预览另有专项测试
+  w.Store.state.ui.injectPreview = false;
   w.Store.save();
 
   const click = sel => {
@@ -130,7 +132,7 @@ vc.on('error', (...a) => errors.push('console.error: ' + a.join(' ')));
   ok('分卷已保存', w.Store.getBook(bookId).volumes.length === 1);
 
   console.log('\n[4] AI 自动分章');
-  w.location.hash = '#/chapters/' + bookId; w.UI.route();
+  w.location.hash = '#/book/' + bookId + '/chapters'; w.UI.route();
   click('[data-act="outline.ai"]'); await sleep(30);
   fillSheet({ count: '2' });
   await sleep(600);
@@ -138,7 +140,7 @@ vc.on('error', (...a) => errors.push('console.error: ' + a.join(' ')));
     w.document.getElementById('busyText').textContent + ' | body=' + w.document.getElementById('sheetBody').textContent.slice(0, 160);
   ok('生成了 2 个章节', w.Store.getBook(bookId).chapters.length === 2, dbg());
   ok('章节带大纲', !!w.Store.getBook(bookId).chapters[0].outline);
-  ok('跳转到章节列表', w.location.hash.indexOf('#/chapters/') === 0);
+  ok('跳转到章节列表', w.location.hash === '#/book/' + bookId + '/chapters', w.location.hash);
 
   console.log('\n[5] 界面3：章节列表');
   w.UI.route();
@@ -192,7 +194,7 @@ vc.on('error', (...a) => errors.push('console.error: ' + a.join(' ')));
   ok('自动挂载到书本', w.Store.getBook(bookId).globalPromptIds.length === 3);
 
   console.log('\n[10] 章节列表：分卷分组 + 大纲入口');
-  w.location.hash = '#/chapters/' + bookId; w.UI.route(); await sleep(30);
+  w.location.hash = '#/book/' + bookId + '/chapters'; w.UI.route(); await sleep(30);
   ok('按分卷分组显示', w.document.querySelectorAll('.vol-head').length >= 1, String(w.document.querySelectorAll('.vol-head').length));
   ok('每章有「✎ 大纲」入口', w.document.querySelectorAll('[data-act="chapter.edit"]').length >= 1);
   ok('每章有「✨ 生成正文」入口', w.document.querySelectorAll('[data-act="chapter.generate"]').length >= 1);
@@ -209,7 +211,9 @@ vc.on('error', (...a) => errors.push('console.error: ' + a.join(' ')));
   click('[data-act="go.templates"]'); await sleep(40);
   ok('模板列表页打开', w.document.getElementById('page').innerHTML.indexOf('正文生成 · 主提示词') >= 0);
   const tplKeys = Object.keys(w.Store.TEMPLATE_DEFS);
-  ok('内置模板数量（含 AI 整理设定 / 快捷导入）', tplKeys.length === 11, String(tplKeys.length));
+  /* 13 处基础模板 + 文风规则 / 伏笔 / 一致性审计 + 设定管理（v5 起陆续新增） */
+  ok('内置模板数量（含 AI 整理设定 / 快捷导入 / 完整记忆块 / 文风 / 伏笔 / 审计）',
+    tplKeys.length === 18, String(tplKeys.length));
   const tplBtn = Array.prototype.slice.call(w.document.querySelectorAll('[data-act="template.open"]'))
     .filter(el => el.getAttribute('data-key') === 'chapterUser')[0];
   tplBtn.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
@@ -251,7 +255,7 @@ vc.on('error', (...a) => errors.push('console.error: ' + a.join(' ')));
     w.UI.closeSheet();
     ok(name, errors.length === 0, errors.slice(-1)[0]);
   }
-  await tryAct('章节菜单', '#/chapters/' + bookId, '[data-act="chapter.menu"]');
+  await tryAct('章节菜单', '#/book/' + bookId + '/chapters', '[data-act="chapter.menu"]');
   await tryAct('书本菜单', '#/book/' + bookId + '/basic', '[data-act="book.menu"]', () => w.UI.closeSheet());
   await tryAct('查看注入提示词', '#/read/' + bookId + '/' + bk4.chapters[0].id, '[data-act="reader.menu"]', async () => {
     const el = w.document.querySelector('[data-act="reader.viewPrompt"]');
@@ -291,7 +295,9 @@ vc.on('error', (...a) => errors.push('console.error: ' + a.join(' ')));
   console.log('\n[12] 记忆查看 / 编辑');
   w.location.hash = '#/book/' + bookId + '/memory'; w.UI.route(); await sleep(20);
   click('[data-act="memory.view"]'); await sleep(40);
+  // 正文注入的是「前情记忆」块（摘要 + 近期条目）；分章才用「长期记忆（完整）」
   ok('可查看实际注入的记忆', w.document.getElementById('sheetBody').textContent.indexOf('前情记忆') >= 0 ||
+    w.document.getElementById('sheetBody').textContent.indexOf('长期记忆（完整）') >= 0 ||
     w.document.getElementById('sheetBody').textContent.indexOf('没有可注入') >= 0);
   w.UI.closeSheet();
   const mEdit = w.document.querySelector('[data-act="memory.edit"]');
@@ -345,8 +351,11 @@ vc.on('error', (...a) => errors.push('console.error: ' + a.join(' ')));
   fillSheet({ title: '第二卷 深入', summary: '进入内陆' }); await sleep(40);
   const bk6 = w.Store.getBook(bookId);
   ok('已有两个分卷', bk6.volumes.length === 2, String(bk6.volumes.length));
-  w.location.hash = '#/chapters/' + bookId; w.UI.route(); await sleep(20);
+  w.location.hash = '#/book/' + bookId + '/chapters'; w.UI.route(); await sleep(20);
   ok('章节卡片有「⇄ 换分卷」', !!w.document.querySelector('[data-act="chapter.moveVol"]'));
+  // 记下将要被移动的那一章（页面上第一个换卷按钮对应的章节）
+  const movingId = w.document.querySelector('[data-act="chapter.moveVol"]').getAttribute('data-id');
+  const movingTitle = w.Store.getChapter(w.Store.getBook(bookId), movingId).title;
   w.document.querySelector('[data-act="chapter.moveVol"]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   await sleep(30);
   const volSel = w.document.querySelector('#sheetBody [data-f="volumeId"]');
@@ -355,8 +364,12 @@ vc.on('error', (...a) => errors.push('console.error: ' + a.join(' ')));
   const mvBtns = w.document.querySelectorAll('#sheetFoot .btn');
   mvBtns[mvBtns.length - 1].dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   await sleep(60);
-  ok('章节已换到第二卷', w.Store.getBook(bookId).chapters[0].volumeId === bk6.volumes[1].id,
-    w.Store.getBook(bookId).chapters[0].volumeId);
+  const bk6b = w.Store.getBook(bookId);
+  const mvCh = bk6b.chapters.filter(c => c.volumeId === bk6.volumes[1].id);
+  ok('章节已换到第二卷', mvCh.length === 1 && mvCh[0].id === movingId,
+    'moved=' + JSON.stringify(mvCh.map(c => c.title)) + ' expected=' + movingTitle);
+  ok('换卷后仍无孤儿章节', bk6b.chapters.every(c => !!c.volumeId));
+  ok('换卷后章节总数不变', bk6b.chapters.length === bk6.chapters.length);
   ok('正文未受影响', !!w.Store.getBook(bookId).chapters[0].content || true);
 
   console.log('\n[15] 快捷导入 · 规则切分');
@@ -400,7 +413,7 @@ vc.on('error', (...a) => errors.push('console.error: ' + a.join(' ')));
   ok('【我】的内容进了大纲', !!nb && nb.chapters[0].outline.indexOf('新故事') >= 0);
   ok('AI 的内容进了正文', !!nb && nb.chapters[0].content.indexOf('李明睁开眼') >= 0);
   ok('尾巴与追问已剔除', !!nb && nb.chapters[0].content.indexOf('分享自') < 0 && nb.chapters[0].content.indexOf('需要继续') < 0);
-  ok('跳转到章节列表', w.location.hash.indexOf('#/chapters/') === 0, w.location.hash);
+  ok('跳转到章节列表', w.location.hash === '#/book/' + nb.id + '/chapters', w.location.hash);
 
   // AI 整理模式
   const baseFetch = w.fetch;
@@ -533,7 +546,7 @@ vc.on('error', (...a) => errors.push('console.error: ' + a.join(' ')));
 
   // (4) 世界设定页查看与转正
   w.location.hash = '#/book/' + bookId + '/world'; w.UI.route(); await sleep(30);
-  ok('世界设定页显示推荐区', w.document.getElementById('page').textContent.indexOf('AI 推荐的新设定') >= 0);
+  ok('世界设定页显示推荐区', w.document.getElementById('page').textContent.indexOf('AI 推荐的设定') >= 0);
   ok('推荐条目可见', w.document.getElementById('page').textContent.indexOf('苏牧') >= 0);
   ok('书本 Tab 有推荐角标', w.document.getElementById('page').textContent.indexOf('💡2') >= 0);
 
@@ -589,7 +602,7 @@ vc.on('error', (...a) => errors.push('console.error: ' + a.join(' ')));
       : '{"summary":"s","points":["p"],"world":[]}';
     return { ok: true, status: 200, text: async () => '', json: async () => ({ choices: [{ message: { content } }] }) };
   };
-  w.location.hash = '#/chapters/' + bookId; w.UI.route(); await sleep(20);
+  w.location.hash = '#/book/' + bookId + '/chapters'; w.UI.route(); await sleep(20);
   click('[data-act="outline.ai"]'); await sleep(40);
   // 选第二卷 + 取消「追加」，即覆盖式重写
   const sel = w.document.querySelector('#sheetBody select[data-f="volume"]');

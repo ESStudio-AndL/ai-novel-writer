@@ -1,0 +1,19 @@
+{
+  "name": "AI 小说写作助手",
+  "short_name": "小说助手",
+  "description": "纯本地存储的 AI 小说写作工具：分卷章节、世界设定、长期记忆、多模型方案",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#12131a",
+  "theme_color": "#12131a",
+  "icons": [
+    {
+      "src": "img/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

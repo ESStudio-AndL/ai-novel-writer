@@ -6,6 +6,9 @@
 <meta name="theme-color" content="#12131a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>AI 小说写作助手</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="img/icon.svg">
+<link rel="apple-touch-icon" href="img/icon.svg">
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
@@ -57,6 +60,15 @@
 
 <div class="toast-root" id="toastRoot"></div>
 
+<!-- 可拖动悬浮球：撤销上次改动 / 查看上次 AI 上下文 / 切换模型预设 -->
+<div id="fab" class="fab" title="撤销 / AI 上下文 / 模型预设">◆</div>
+<div id="fabPanel" class="fab-panel hidden">
+  <div class="fab-title">快捷工具</div>
+  <button class="btn block" data-act="fab.undo">↩ 撤销上次生成</button>
+  <button class="btn block" data-act="fab.ctx">📋 查看上次 AI 上下文</button>
+  <button class="btn block" data-act="fab.presets">🔀 切换模型预设</button>
+</div>
+
 <div class="busy hidden" id="busy">
   <div class="busy-box">
     <div class="spinner"></div>
@@ -65,6 +77,7 @@
   </div>
 </div>
 
+<script src="js/util.js"></script>
 <script src="js/store.js"></script>
 <script src="js/api.js"></script>
 <script src="js/ai.js"></script>

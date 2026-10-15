@@ -1,0 +1,6 @@
+# 依赖（测试用，自行 npm i jsdom 安装）
+node_modules/
+
+# 日志与系统文件
+*.log
+.DS_Store
