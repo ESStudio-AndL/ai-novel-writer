@@ -783,6 +783,17 @@
         (info.healthy ? '' : '<br><span style="color:var(--danger)">⚠ 最近一次保存失败，多为存储空间已满，请立即导出数据。</span>') +
         '</div>';
 
+      /* 版本与缓存：这是个 PWA，离线缓存很容易让人「git pull 了却看不到新功能」。
+       * 手机上又没有 devtools，所以必须留一个能在界面里点的出口。 */
+      html += '<div class="section-title">版本与更新</div>' +
+        '<div class="card"><div class="row"><span class="small">当前版本</span><div class="spacer"></div>' +
+        '<span class="chip" id="verChip">v' + esc(Store.APP_VERSION) + '</span></div>' +
+        '<div class="hint mt8">这是 PWA，会缓存页面供离线使用。改了代码（git pull）后如果界面没变化，' +
+        '多半是浏览器还在用旧缓存——点下面这个按钮清掉再重载即可，作品数据不受影响。</div>' +
+        '<div class="row-wrap mt8">' +
+        '<button class="btn sm primary" data-act="app.forceReload">↻ 强制刷新（清缓存重载）</button>' +
+        '</div></div>';
+
       html += '<div class="section-title">使用说明</div>' +
         '<div class="card small muted">' +
         '1. 先在上方新增一个 API 提供商（只填连接：Base URL + Key），保存后按引导建第一个模型方案。<br>' +

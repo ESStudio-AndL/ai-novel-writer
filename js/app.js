@@ -2379,6 +2379,39 @@
       '<div class="card small" style="white-space:pre-wrap;max-height:42vh;overflow:auto">' + esc(r.body) + '</div>';
   }
 
+  /* ---- 版本与强制刷新 ----
+   * PWA 的离线缓存会让人「git pull 了却看不到新功能」，手机上又没有 devtools。
+   * 这里注销 SW、清掉所有 Cache Storage，再带一个 cache-busting 参数重载。
+   * 只清缓存，不碰 localStorage —— 作品数据一条都不会掉。 */
+  A['app.forceReload'] = function () {
+    UI.confirm('强制刷新',
+      '会清掉浏览器缓存的页面与脚本（作品数据在本地存储里，不受影响），然后重新加载。',
+      '清缓存并重载').then(function (ok) {
+        if (!ok) return;
+        UI.toast('正在清理缓存…');
+        var jobs = [];
+        try {
+          if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+            jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) {
+              return Promise.all(rs.map(function (r) { return r.unregister(); }));
+            }));
+          }
+        } catch (e) { }
+        try {
+          if (typeof caches !== 'undefined' && caches.keys) {
+            jobs.push(caches.keys().then(function (ks) {
+              return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+            }));
+          }
+        } catch (e) { }
+        Promise.all(jobs).catch(function () { }).then(function () {
+          var u = new URL(location.href);
+          u.searchParams.set('_r', String(Date.now()));
+          location.replace(u.toString());
+        });
+      });
+  };
+
   /* ---- 悬浮球：撤销上次生成 ----
    * 现在有两套可撤销的记录：
    *   ① undoStack —— 正文生成 / AI 重写 / 划线改稿（只弹出栈顶那一条）
@@ -3286,7 +3319,12 @@
     if (typeof navigator === 'undefined' || !navigator.serviceWorker) return;
     if (String(location.protocol).indexOf('http') !== 0) return;
     try {
-      navigator.serviceWorker.register('sw.js').catch(function () { });
+      navigator.serviceWorker.register('sw.js').then(function (reg) {
+        /* 主动查一次更新：浏览器平时只在导航时顺带检查 sw.js，
+         * 手机上切回来打开经常正好跳过那一步，于是「改了代码却还是旧版」。 */
+        if (reg && reg.update) reg.update().catch(function () { });
+        if (reg && reg.waiting && reg.waiting.postMessage) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      }).catch(function () { });
     } catch (e) { }
   }
 

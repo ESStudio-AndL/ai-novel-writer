@@ -361,7 +361,13 @@ python3 -m http.server 8080
 
 **📦 PWA 与单文件版**
 
-- 新增 `manifest.webmanifest` + `sw.js`：可「添加到主屏幕」离线打开（stale-while-revalidate，静态资源缓存优先、导航回退 index.html）
+- 新增 `manifest.webmanifest` + `sw.js`：可「添加到主屏幕」离线打开
+- 缓存策略是**同源 network-first**：先回源（`cache: 'reload'` 绕开 HTTP 缓存），网络不通才回落到缓存，导航请求再退到 `index.html`。
+  不用 stale-while-revalidate —— 「先给缓存」会让 `git pull` 之后第一次打开必定是旧版，而且那个后台重验证会被浏览器的 HTTP 缓存
+  喂回旧字节（`python3 -m http.server` 不发 `Cache-Control`，浏览器按启发式规则认为旧文件还新鲜），手机上表现为「pull 了却看不到新功能」
+- **改了代码看不到新功能时**：到「设置 → 版本与更新」点「↻ 强制刷新（清缓存重载）」——注销 SW、清掉全部 Cache Storage 再带 cache-busting 参数重载，
+  **只清缓存，作品数据一条都不掉**。设置页同时显示当前版本号，方便和 sw.js 里的 `VERSION` 对一眼
+- 加载时会主动 `registration.update()`：浏览器平时只在导航时顺带检查 `sw.js`，手机切回来打开经常正好跳过那一步
 - `node build/single-file.js` 生成 `dist/index.html`（约 350 KB，css / js / 图标全部内联），双击就能用，适合手机上直接打开或发给别人
 
 **🛡️ 存储加固**
@@ -428,7 +434,7 @@ node tests/dom.js        # 完整业务流程端到端
 node tests/features.js   # 主题 / 搜索 / 排版 / 统计 / 导出 / 快捷键
 node tests/round2.js     # 模型预设 / 设定作用域 / 模型列表与余额 / 重写指示 / 分章上下文与模板迁移（纯逻辑）
 node tests/round2ui.js   # 模型选择器 / 章节目录 / 作用域切换 / 重写撤销 / 悬浮球（含撤销入口）/ 归属修改（端到端）
-node tests/round3.js     # 用量记账 / 任务路由 / 关闭思考 / 触发式注入与角色卡 / 去重 / 文风 / 伏笔 / 预览 / 审计 / PWA（纯逻辑）
+node tests/round3.js     # 用量记账 / 任务路由 / 关闭思考 / 触发式注入与角色卡 / 去重 / 文风 / 伏笔 / 预览 / 审计 / PWA 缓存策略（纯逻辑）
 node tests/round3ui.js   # 生成前预览与临时减配 / 伏笔板 / 用量卡片 / 文风规则（端到端）
 node tests/round4.js     # 【【】】解析 / 分段渲染 / 连框替换 / 意见对齐 / 改稿提示词（纯逻辑）
 node tests/round4ui.js   # 正文里加框 / 逐条填意见 / 只改框里 / 撤销（端到端）
@@ -436,7 +442,7 @@ node tests/round5.js     # 标签格式解析 / 提案定位与歧义 / 应用�
 node tests/round5ui.js   # 小编对话 / 逐条预览修改应用忽略 / 事务撤销 / 悬浮球撤销（端到端）
 ```
 
-合计 **1161 项断言，全部通过**（smoke 93 / round2 102 / round3 208 / round4 75 / round5 128 / features 30 / dom 146 / round2ui 126 / round3ui 114 / round4ui 53 / round5ui 86）。另用 Playwright + Chromium 做过真实浏览器验证：悬浮球交互、改归属、老链接改写、记忆阶段刷新、自动分章四段上下文、重写留空。
+合计 **1172 项断言，全部通过**（smoke 93 / round2 102 / round3 215 / round4 75 / round5 128 / features 30 / dom 150 / round2ui 126 / round3ui 114 / round4ui 53 / round5ui 86）。另用 Playwright + Chromium 做过真实浏览器验证：悬浮球交互、改归属、老链接改写、记忆阶段刷新、自动分章四段上下文、重写留空。
 
 ## 数据备份
 

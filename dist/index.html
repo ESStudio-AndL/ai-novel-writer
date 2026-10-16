@@ -1944,6 +1944,10 @@ body.has-tab .toast-root { bottom: calc(84px + var(--safe-b)); }
     },
 
     /* 任务类型（模型方案可绑定其一，实现「不同活用不同模型」） */
+    /* 版本号。改代码后请一并改 sw.js 里的 VERSION（两者必须一致，有测试锁着）——
+     * 缓存的键名带着版本号，发版时旧缓存才会被清掉，否则手机上会一直看到旧页面。 */
+    APP_VERSION: '9.0.0',
+
     /* 世界书分栏（供 ai.js / 界面共用同一份定义） */
     WORLD_CATS: WORLD_CATS,
     WORLD_LABEL: WORLD_LABELS,
@@ -5896,6 +5900,17 @@ body.has-tab .toast-root { bottom: calc(84px + var(--safe-b)); }
         (info.healthy ? '' : '<br><span style="color:var(--danger)">⚠ 最近一次保存失败，多为存储空间已满，请立即导出数据。</span>') +
         '</div>';
 
+      /* 版本与缓存：这是个 PWA，离线缓存很容易让人「git pull 了却看不到新功能」。
+       * 手机上又没有 devtools，所以必须留一个能在界面里点的出口。 */
+      html += '<div class="section-title">版本与更新</div>' +
+        '<div class="card"><div class="row"><span class="small">当前版本</span><div class="spacer"></div>' +
+        '<span class="chip" id="verChip">v' + esc(Store.APP_VERSION) + '</span></div>' +
+        '<div class="hint mt8">这是 PWA，会缓存页面供离线使用。改了代码（git pull）后如果界面没变化，' +
+        '多半是浏览器还在用旧缓存——点下面这个按钮清掉再重载即可，作品数据不受影响。</div>' +
+        '<div class="row-wrap mt8">' +
+        '<button class="btn sm primary" data-act="app.forceReload">↻ 强制刷新（清缓存重载）</button>' +
+        '</div></div>';
+
       html += '<div class="section-title">使用说明</div>' +
         '<div class="card small muted">' +
         '1. 先在上方新增一个 API 提供商（只填连接：Base URL + Key），保存后按引导建第一个模型方案。<br>' +
@@ -9170,6 +9185,39 @@ body.has-tab .toast-root { bottom: calc(84px + var(--safe-b)); }
       '<div class="card small" style="white-space:pre-wrap;max-height:42vh;overflow:auto">' + esc(r.body) + '</div>';
   }
 
+  /* ---- 版本与强制刷新 ----
+   * PWA 的离线缓存会让人「git pull 了却看不到新功能」，手机上又没有 devtools。
+   * 这里注销 SW、清掉所有 Cache Storage，再带一个 cache-busting 参数重载。
+   * 只清缓存，不碰 localStorage —— 作品数据一条都不会掉。 */
+  A['app.forceReload'] = function () {
+    UI.confirm('强制刷新',
+      '会清掉浏览器缓存的页面与脚本（作品数据在本地存储里，不受影响），然后重新加载。',
+      '清缓存并重载').then(function (ok) {
+        if (!ok) return;
+        UI.toast('正在清理缓存…');
+        var jobs = [];
+        try {
+          if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+            jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) {
+              return Promise.all(rs.map(function (r) { return r.unregister(); }));
+            }));
+          }
+        } catch (e) { }
+        try {
+          if (typeof caches !== 'undefined' && caches.keys) {
+            jobs.push(caches.keys().then(function (ks) {
+              return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+            }));
+          }
+        } catch (e) { }
+        Promise.all(jobs).catch(function () { }).then(function () {
+          var u = new URL(location.href);
+          u.searchParams.set('_r', String(Date.now()));
+          location.replace(u.toString());
+        });
+      });
+  };
+
   /* ---- 悬浮球：撤销上次生成 ----
    * 现在有两套可撤销的记录：
    *   ① undoStack —— 正文生成 / AI 重写 / 划线改稿（只弹出栈顶那一条）
@@ -10077,7 +10125,12 @@ body.has-tab .toast-root { bottom: calc(84px + var(--safe-b)); }
     if (typeof navigator === 'undefined' || !navigator.serviceWorker) return;
     if (String(location.protocol).indexOf('http') !== 0) return;
     try {
-      navigator.serviceWorker.register('sw.js').catch(function () { });
+      navigator.serviceWorker.register('sw.js').then(function (reg) {
+        /* 主动查一次更新：浏览器平时只在导航时顺带检查 sw.js，
+         * 手机上切回来打开经常正好跳过那一步，于是「改了代码却还是旧版」。 */
+        if (reg && reg.update) reg.update().catch(function () { });
+        if (reg && reg.waiting && reg.waiting.postMessage) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      }).catch(function () { });
     } catch (e) { }
   }
 

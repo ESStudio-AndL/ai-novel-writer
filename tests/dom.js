@@ -188,6 +188,23 @@ vc.on('error', (...a) => errors.push('console.error: ' + a.join(' ')));
   console.log('\n[9] 设置页');
   w.location.hash = '#/settings'; w.UI.route();
   ok('设置页渲染', w.document.getElementById('page').innerHTML.indexOf('API 提供商') >= 0);
+
+  /* 版本与缓存出口：这是个 PWA，手机上遇到「pull 了却看到旧页面」时
+   * 没有 devtools 可用，必须能在界面里点一下解决。 */
+  ok('设置页显示当前版本号',
+    w.document.getElementById('verChip') &&
+    w.document.getElementById('verChip').textContent.indexOf(w.Store.APP_VERSION) >= 0,
+    w.document.getElementById('verChip') && w.document.getElementById('verChip').textContent);
+  ok('设置页有「强制刷新」入口', !!w.document.querySelector('[data-act="app.forceReload"]'));
+  ok('并说明清了缓存不影响作品数据',
+    w.document.getElementById('page').innerHTML.indexOf('作品数据') >= 0);
+  click('[data-act="app.forceReload"]'); await sleep(40);
+  ok('点它会先确认', w.document.getElementById('sheetTitle').textContent.indexOf('强制刷新') >= 0);
+  // 点「取消」，别真触发 location.replace（jsdom 没实现）
+  const fbtns = w.document.querySelectorAll('#sheetFoot .btn');
+  fbtns[0].dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  await sleep(40);
+
   click('[data-act="prompt.new"]'); await sleep(20);
   fillSheet({ title: '新提示词', content: '要写得更有画面感' }); await sleep(30);
   ok('全局提示词已新增', w.Store.state.globalPrompts.length === 3);

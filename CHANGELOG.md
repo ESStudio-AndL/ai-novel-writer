@@ -2,6 +2,47 @@
 
 本文件记录相对于初始版本的全部改动，按类别分组。每条都可被测试套件覆盖（见文末测试说明）。
 
+## 第十四轮改造（v9.0）：修 Service Worker 缓存导致「pull 了却看到旧版」
+
+用户反馈：手机上 `git pull` 后用 `python3 -m http.server 8080` 打开，缺少很多新功能；**换个端口就正常**。
+
+### 根因（三个问题叠在一起）
+
+换端口就好了，这一条直接指向 Service Worker —— SW 按 origin 注册，而 origin 含端口，
+所以 8080 上有旧的 SW 在拦截请求，8081 是干净的新 origin。
+
+1. **`CACHE = 'novel-writer-v1'` 从来没改过**。`activate` 里靠「缓存名不等就删」来清旧缓存，
+   名字不变 → 旧缓存永远不会被清。
+2. **stale-while-revalidate 用在 `index.html` 上**：先返回缓存，后台再拉新的。
+   于是 `git pull` 之后**第一次打开必定是旧版**。
+3. **最致命的一条**：那个「后台重新验证」的 `fetch(req)` 会走浏览器的 HTTP 缓存，
+   而 `python3 -m http.server` 只发 `Last-Modified`、**不发 `Cache-Control`** →
+   浏览器按启发式规则（约文件年龄的 10%）认为旧文件「还新鲜」，直接返回旧字节 →
+   SW 把旧内容**又写回缓存**。于是不是「旧一次」，而是**一直旧**。
+4. 附带：`sw.js` 每次发版字节完全一样，浏览器判定「SW 没更新」就不会 install/activate，
+   预缓存那一步也不会重跑。
+
+### 修复
+
+5. **改成同源 network-first**：先 `fetch(new Request(req, { cache: 'reload' }))` 回源
+   （`cache: 'reload'` 绕开 HTTP 缓存，保证拿到服务器上的真实字节），网络不通才回落到缓存，
+   导航请求再退到 `index.html`。对一个本地工具来说，服务器几乎总在线，**立刻看到新代码**比省几十毫秒重要得多。
+6. 基于 `req` 而不是 `req.url` 构造 Request，method / headers / mode / credentials 原样保留（导航请求上更稳）。
+7. **缓存名带版本号** `novel-writer-<VERSION>`，发版时旧缓存自动被清。新增 `Store.APP_VERSION`，
+   并在测试里锁死「它必须等于 sw.js 里的 `VERSION`」——靠测试而不是靠记性来保持两者一致。
+8. **设置页新增「版本与更新」**：显示当前版本号 + 「↻ 强制刷新（清缓存重载）」按钮。
+   手机上没有 devtools，必须留一个能在界面里点的出口。它注销 SW、清掉全部 Cache Storage，
+   再带 cache-busting 参数 `location.replace`，**只清缓存不碰 localStorage**（作品数据一条都不掉）。
+9. 启动时主动 `registration.update()`：浏览器平时只在导航时顺带检查 `sw.js`，
+   手机切回来打开经常正好跳过那一步。
+
+### 测试
+
+`tests/round3.js` 的 `[11] PWA` 分组从 3 项扩到 10 项：断言策略确实是 network-first、
+缓存查询只在 catch 分支里、用了 `cache: 'reload'`、缓存名带版本号、**版本号与 `Store.APP_VERSION` 一致**。
+`tests/dom.js` 新增 4 项覆盖设置页的版本显示与强制刷新入口（点击后走确认、可取消）。
+全套 11 个文件合计 **1172 项断言，全部通过**（smoke 93 / round2 102 / round3 215 / round4 75 / round5 128 / features 30 / dom 150 / round2ui 126 / round3ui 114 / round4ui 53 / round5ui 86）。
+
 ## 第十三轮改造（v8.2）：框选改稿 —— 用【【】】代替浏览器选区
 
 用户实测反馈：划线的识别有问题。改成「正文里用【【】】框起来的部分即待改条目」，  

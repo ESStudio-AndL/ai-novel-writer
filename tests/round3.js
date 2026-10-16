@@ -791,7 +791,24 @@ const P_CHEAP = { id: 'pB', name: '便宜', type: 'openai', baseUrl: 'https://b.
   ok('sw 注册 install / activate / fetch',
     /addEventListener\('install'/.test(sw) && /addEventListener\('activate'/.test(sw) && /addEventListener\('fetch'/.test(sw));
   ok('sw 对导航请求回退到 index.html',
-    /index\.html/.test(sw) && /stale-while-revalidate|network|cache/i.test(sw));
+    /index\.html/.test(sw) && /req\.mode === 'navigate'/.test(sw));
+  /* 缓存策略：必须是 network-first。曾经用 stale-while-revalidate，结果
+   * 「先给缓存」让 git pull 之后第一次打开必定是旧版，而那个后台重验证
+   * 还会被浏览器的 HTTP 缓存喂回旧字节——手机上表现为「pull 了却看不到新功能」。 */
+  ok('sw 是同源 network-first（先走网络，失败才回落到缓存）',
+    /fetch\(new Request\(req, \{ cache: 'reload' \}\)/.test(sw));
+  ok('sw 的响应策略以「回源」开头，缓存只做兜底',
+    /fetch\(new Request\(req, \{ cache: 'reload' \}\)/.test(sw.slice(sw.indexOf('e.respondWith('), sw.indexOf('e.respondWith(') + 400)));
+  ok('缓存查询只在网络失败的 catch 分支里',
+    /catch\(function \(\) \{[\s\S]{0,240}caches\.match\(req\)/.test(sw));
+  ok('sw 用 cache:reload 绕开 HTTP 缓存（否则重验证拿回的还是旧文件）',
+    /cache: 'reload'/.test(sw));
+  const swVer = (sw.match(/var VERSION = '([^']+)'/) || [])[1];
+  ok('sw 里的版本号存在', !!swVer, swVer);
+  ok('sw 的版本号与 Store.APP_VERSION 一致（发版时要一起改）',
+    swVer === Store.APP_VERSION, swVer + ' vs ' + Store.APP_VERSION);
+  ok('缓存名带版本号（发版时旧缓存才会被清掉）',
+    /var CACHE = 'novel-writer-' \+ VERSION/.test(sw));
   ok('单文件构建脚本存在', fs.existsSync(path.join(root, 'build', 'single-file.js')));
   const distPath = path.join(root, 'dist', 'index.html');
   if (fs.existsSync(distPath)) {
